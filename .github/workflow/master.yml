@@ -1,0 +1,73 @@
+# 1. 指定ci/cd流程的触发条件
+# 2. 配置我们的任务 -> 步骤
+# 3. 拉取项目代码 -> 安装node的依赖 -> 构建产生dist目录 -> 发布到github pages
+# or 我们自己的web服务器
+
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches: [master]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: "14.x"
+      # 这里是node_modules的缓存，用于加速node的后续的构建
+      - name: Cache node modules
+        uses: actions/cache@v1
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: npm i
+      - name: Generates Pages
+        run: |
+          npm run build
+      - name: Deploy Github Pages🚀
+        uses: JamesIves/github-pages-deploy-action@4.1.0
+        with:
+          repository-name: yourname/yourname.github.io # The branch the action should deploy to.
+          branch: master
+          folder: ./docs/.vuepress/dist # The folder the action should deploy.
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+      - name: Rsync Deployments
+        uses: burnett01/rsync-deployments@4.1
+        with:
+          switches: -avzr --delete
+          path: ./docs/.vuepress/dist/
+          remote_path: /var/www/front-end/notes-page/
+          remote_host: 47.105.212.161
+          remote_user: root
+          # id_rsd.pub-> 锁 id_rsa->钥匙
+          remote_key: ${{ secrets.IMOOC_RSYNC }}
+          remote_port: 10022
+      # 继续添加更多的steps
+      # Runs a single command using the runners shell
+      # - name: Run a one-line script
+      #   run: echo Hello, world!
+      # Runs a set of commands using the runners shell
+      # - name: Run a multi-line script
+      #   run: |
+      #     echo Add other actions to build,
+      #     echo test, and deploy your project.
